@@ -1,5 +1,7 @@
 package nachos.threads;
 
+import java.util.ArrayList;
+
 import nachos.machine.*;
 
 /**
@@ -29,6 +31,25 @@ public class Alarm {
 	 * should be run.
 	 */
 	public void timerInterrupt() {
+		//KThread.yield();
+		
+		boolean intStatus = Machine.interrupt().disable();
+		
+		long currentTime = Machine.timer().getTime();
+		
+		for (int i = 0; i < time.size(); ++i)
+		{
+			if (time.get(i) <= currentTime)
+			{
+				thread.get(i).ready();
+				time.remove(i);
+				thread.remove(i);
+				--i;
+			}
+		}
+		
+		Machine.interrupt().setStatus(intStatus);
+		
 		KThread.yield();
 	}
 
@@ -47,8 +68,34 @@ public class Alarm {
 	 */
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
-		long wakeTime = Machine.timer().getTime() + x;
+		/*long wakeTime = Machine.timer().getTime() + x;
 		while (wakeTime > Machine.timer().getTime())
-			KThread.yield();
+			KThread.yield();*/
+		
+		boolean intStatus = Machine.interrupt().disable();
+		
+		long wakeTime = Machine.timer().getTime() + x;
+		time.add(wakeTime);
+		thread.add(KThread.currentThread());
+		KThread.sleep();
+		
+		int i = time.size() - 1;
+		while (i > 0 && time.get(i) < time.get(i - 1))
+		{
+			long t = time.get(i - 1);
+			time.set(i - 1, time.get(i));
+			time.set(i, t);
+			
+			KThread tt = thread.get(i - 1);
+			thread.set(i - 1, thread.get(i));
+			thread.set(i, tt);
+			
+			--i;
+		}
+		
+		Machine.interrupt().restore(intStatus);
 	}
+	
+	private ArrayList<Long> time = new ArrayList<Long>();
+	private ArrayList<KThread> thread = new ArrayList<KThread>();
 }

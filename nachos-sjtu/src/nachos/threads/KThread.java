@@ -1,5 +1,8 @@
 package nachos.threads;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import nachos.machine.*;
 
 /**
@@ -205,6 +208,9 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 
+		for (int i = 0; i < currentThread.joinList.size(); ++i)
+			currentThread.joinList.get(i).ready();
+		
 		sleep();
 	}
 
@@ -282,11 +288,32 @@ public class KThread {
 	 * return immediately. This method must only be called once; the second call
 	 * is not guaranteed to return. This thread must not be the current thread.
 	 */
+	
+	public List<KThread> joinList = new ArrayList<KThread>();
+	
 	public void join() {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
+		
+		boolean intStatus = Machine.interrupt().disable();
+		
+		//Lib.assertTrue(this != currentThread);
 
-		Lib.assertTrue(this != currentThread);
-
+		boolean joined = false;
+		for (int i = 0; i < joinList.size(); ++i)
+			if (joinList.get(i) == currentThread)
+				joined = true;
+		
+		if (status == statusFinished || this == currentThread || joined)
+		{
+			Machine.interrupt().restore(intStatus);
+			return;
+		}
+		
+		joinList.add(currentThread);
+		
+		KThread.sleep();
+		
+		Machine.interrupt().restore(intStatus);
 	}
 
 	/**

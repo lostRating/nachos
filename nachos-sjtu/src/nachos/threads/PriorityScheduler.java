@@ -1,5 +1,8 @@
 package nachos.threads;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import nachos.machine.Lib;
 import nachos.machine.Machine;
 
@@ -148,8 +151,18 @@ public class PriorityScheduler extends Scheduler {
 
 		public KThread nextThread() {
 			Lib.assertTrue(Machine.interrupt().disabled());
-			// implement me
-			return null;
+			
+			ThreadState threadState;
+			if (holder != null)
+				holder.holdPQ.remove(this);
+			if ((threadState = pickNextThread()) == null){
+				holder = null;
+				return null;
+			}
+			
+			threadState.acquire(this);
+			
+			return threadState.thread;
 		}
 
 		/**
@@ -160,7 +173,19 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		protected ThreadState pickNextThread() {
 			// implement me
-			return null;
+			if (waitThread.isEmpty()){
+				return null;
+			}
+			
+			ThreadState threadState = null;
+			for (int i = 0; i < waitThread.size(); ++i)
+			{
+				ThreadState tmp = getThreadState(waitThread.get(i));
+				if (threadState == null || tmp.getEffectivePriority() > threadState.getEffectivePriority())
+					threadState = tmp;
+			}
+			
+			return threadState;
 		}
 
 		public void print() {
@@ -173,6 +198,9 @@ public class PriorityScheduler extends Scheduler {
 		 * threads to the owning thread.
 		 */
 		public boolean transferPriority;
+		
+		private List<KThread> waitThread = new ArrayList<KThread>();
+		private ThreadState holder = null;
 	}
 
 	/**
@@ -211,8 +239,19 @@ public class PriorityScheduler extends Scheduler {
 		 * @return the effective priority of the associated thread.
 		 */
 		public int getEffectivePriority() {
-			// implement me
-			return priority;
+			effective = priority;
+			for (KThread joinThread : thread.joinList) {
+				ThreadState threadState = getThreadState(joinThread);
+				effective = Math.max(effective, threadState.getEffectivePriority());
+			}
+			for (PriorityQueue waitQueue : holdPQ) {
+				if (!waitQueue.transferPriority) continue;
+				for (int i = 0; i < waitQueue.waitThread.size(); ++i) {
+					ThreadState threadState = getThreadState(waitQueue.waitThread.get(i));
+					effective = Math.max(effective, threadState.getEffectivePriority());
+				}
+			}
+			return effective;
 		}
 
 		/**
@@ -244,6 +283,12 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public void waitForAccess(PriorityQueue waitQueue) {
 			// implement me
+			boolean intStatus = Machine.interrupt().disable();
+			
+			waitQueue.waitThread.add(this.thread);
+			belong = waitQueue;
+			
+			Machine.interrupt().setStatus(intStatus);
 		}
 
 		/**
@@ -258,11 +303,25 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public void acquire(PriorityQueue waitQueue) {
 			// implement me
+			boolean intStatus = Machine.interrupt().disable();
+			
+			waitQueue.waitThread.remove(this.thread);
+			waitQueue.holder = this;
+			this.holdPQ.add(waitQueue);
+			this.belong = null;
+			
+			Machine.interrupt().setStatus(intStatus);
 		}
 
 		/** The thread with which this object is associated. */
 		protected KThread thread;
 		/** The priority of the associated thread. */
 		protected int priority;
+		
+		private List<PriorityQueue> holdPQ = new ArrayList<PriorityQueue>();
+		private PriorityQueue belong = null;
+		
+		private int effective = -1;
+
 	}
 }
