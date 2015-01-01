@@ -39,7 +39,7 @@ public class VMKernel extends UserKernel {
 	 * Terminate this kernel. Never returns.
 	 */
 	public void terminate() {
-		VMProcess.Swap.close();
+		Swap.close();
 		super.terminate();
 	}
 

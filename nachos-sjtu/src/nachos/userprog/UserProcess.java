@@ -411,8 +411,7 @@ public class UserProcess {
 
 	private int handleExec(int name, int argc, int argv) {
 		String fileName = readVirtualMemoryString(name, 256);
-		if (fileName == null)
-			return (-1);
+		if (fileName == null) return -1;
 		String arg[] = new String[argc];
 		for (int i = 0; i < argc; i++) {
 			byte[] buf = new byte[4];
@@ -421,29 +420,25 @@ public class UserProcess {
 			arg[i] = readVirtualMemoryString(addr, 256);
 		}
 		UserProcess child = UserProcess.newUserProcess();
-		if (!child.execute(fileName, arg))
-			return (-1);
+		if (!child.execute(fileName, arg)) return -1;
 		children.add(child.processID);
-		return (child.processID);
+		return child.processID;
 	}
 
 	private int handleJoin(int pid, int status) {
-		if (!children.contains(pid))
-			return (-1);
+		if (!children.contains(pid)) return -1;
 		UserProcess child = idToProcess.get(pid);
 		child.thread.join();
 		byte[] buf = Lib.bytesFromInt(child.exitStatus);
 		writeVirtualMemory(status, buf);
-		return (child.exitSuccess ? 1 : 0);
+		return (child.exitSuccess?1:0);
 	}
 
 	private int handleCreate(int name) {
 		String fileName = readVirtualMemoryString(name, 256);
-		if (removeList.contains(fileName))
-			return (-1);
+		if (removeList.contains(fileName)) return -1;
 		OpenFile file = UserKernel.fileSystem.open(fileName, true);
-		if (file == null)
-			return (-1);
+		if (file == null) return -1;
 		int now = idToFile.lastKey() + 1;
 		idToFile.put(now, file);
 		idToName.put(now, fileName);
@@ -521,7 +516,7 @@ public class UserProcess {
 		return ret;
 	}
 
-	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
+	protected static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
 			syscallRead = 6, syscallWrite = 7, syscallClose = 8,
 			syscallUnlink = 9;

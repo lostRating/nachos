@@ -1,9 +1,8 @@
 package nachos.threads;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import nachos.machine.*;
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+import nachos.machine.TCB;
 
 /**
  * A KThread is a thread that can be used to execute Nachos kernel code. Nachos
@@ -52,17 +51,28 @@ public class KThread {
 		return currentThread;
 	}
 
+	int PID() {
+		return (id);
+	}
+
 	/**
 	 * Allocate a new <tt>KThread</tt>. If this is the first <tt>KThread</tt>,
 	 * create an idle thread as well.
 	 */
 	public KThread() {
+
+		boolean intStatus = Machine.interrupt().disable();
+
+		joinQueue = ThreadedKernel.scheduler.newThreadQueue(true);
+		joinQueue.acquire(this);
+
+		Machine.interrupt().restore(intStatus);
+
 		if (currentThread != null) {
 			tcb = new TCB();
 		} else {
 			readyQueue = ThreadedKernel.scheduler.newThreadQueue(false);
 			readyQueue.acquire(this);
-
 			currentThread = this;
 			tcb = TCB.currentTCB();
 			name = "main";
@@ -208,9 +218,10 @@ public class KThread {
 
 		currentThread.status = statusFinished;
 
-		for (int i = 0; i < currentThread.joinList.size(); ++i)
-			currentThread.joinList.get(i).ready();
-		
+		KThread now;
+		while ((now = currentThread.joinQueue.nextThread()) != null)
+			now.ready();
+
 		sleep();
 	}
 
@@ -277,6 +288,7 @@ public class KThread {
 		Lib.assertTrue(status != statusReady);
 
 		status = statusReady;
+
 		if (this != idleThread)
 			readyQueue.waitForAccess(this);
 
@@ -288,31 +300,18 @@ public class KThread {
 	 * return immediately. This method must only be called once; the second call
 	 * is not guaranteed to return. This thread must not be the current thread.
 	 */
-	
-	public List<KThread> joinList = new ArrayList<KThread>();
-	
 	public void join() {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
-		
-		boolean intStatus = Machine.interrupt().disable();
-		
-		//Lib.assertTrue(this != currentThread);
 
-		boolean joined = false;
-		for (int i = 0; i < joinList.size(); ++i)
-			if (joinList.get(i) == currentThread)
-				joined = true;
-		
-		if (status == statusFinished || this == currentThread || joined)
-		{
-			Machine.interrupt().restore(intStatus);
-			return;
+		Lib.assertTrue(this != currentThread);
+
+		boolean intStatus = Machine.interrupt().disable();
+
+		if (status != statusFinished) {
+			joinQueue.waitForAccess(currentThread);
+			sleep();
 		}
-		
-		joinList.add(currentThread);
-		
-		KThread.sleep();
-		
+
 		Machine.interrupt().restore(intStatus);
 	}
 
@@ -349,7 +348,6 @@ public class KThread {
 		KThread nextThread = readyQueue.nextThread();
 		if (nextThread == null)
 			nextThread = idleThread;
-
 		nextThread.run();
 	}
 
@@ -471,6 +469,7 @@ public class KThread {
 	private String name = "(unnamed thread)";
 	private Runnable target;
 	private TCB tcb;
+	private ThreadQueue joinQueue;
 
 	/**
 	 * Unique identifer for this thread. Used to deterministically compare

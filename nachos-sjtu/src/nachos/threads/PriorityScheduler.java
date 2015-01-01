@@ -1,7 +1,7 @@
 package nachos.threads;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedList;
+import java.util.TreeMap;
 
 import nachos.machine.Lib;
 import nachos.machine.Machine;
@@ -60,22 +60,20 @@ public class PriorityScheduler extends Scheduler {
 	public void setPriority(KThread thread, int priority) {
 		Lib.assertTrue(Machine.interrupt().disabled());
 
-		Lib.assertTrue(priority >= priorityMinimum
-				&& priority <= priorityMaximum);
+		Lib.assertTrue(priority >= priorityMinimum	&& priority <= priorityMaximum);
 
 		getThreadState(thread).setPriority(priority);
 	}
 
-	public boolean increasePriority()
-	{
+	public boolean increasePriority() {
 		boolean intStatus = Machine.interrupt().disable();
 
 		KThread thread = KThread.currentThread();
 
 		int priority = getPriority(thread);
-		if (priority == priorityMaximum)
-		{
-		  Machine.interrupt().restore(intStatus); // bug identified by Xiao Jia @ 2011-11-04
+		if (priority == priorityMaximum) {
+			Machine.interrupt().restore(intStatus); // bug identified by Xiao
+													// Jia @ 2011-11-04
 			return false;
 		}
 
@@ -85,16 +83,15 @@ public class PriorityScheduler extends Scheduler {
 		return true;
 	}
 
-	public boolean decreasePriority()
-	{
+	public boolean decreasePriority() {
 		boolean intStatus = Machine.interrupt().disable();
 
 		KThread thread = KThread.currentThread();
 
 		int priority = getPriority(thread);
-		if (priority == priorityMinimum)
-		{
-		  Machine.interrupt().restore(intStatus); // bug identified by Xiao Jia @ 2011-11-04
+		if (priority == priorityMinimum) {
+			Machine.interrupt().restore(intStatus); // bug identified by Xiao
+													// Jia @ 2011-11-04
 			return false;
 		}
 
@@ -142,6 +139,7 @@ public class PriorityScheduler extends Scheduler {
 		public void waitForAccess(KThread thread) {
 			Lib.assertTrue(Machine.interrupt().disabled());
 			getThreadState(thread).waitForAccess(this);
+			// print();
 		}
 
 		public void acquire(KThread thread) {
@@ -150,19 +148,27 @@ public class PriorityScheduler extends Scheduler {
 		}
 
 		public KThread nextThread() {
+			// print();
 			Lib.assertTrue(Machine.interrupt().disabled());
-			
-			ThreadState threadState;
-			if (holder != null)
-				holder.holdPQ.remove(this);
-			if ((threadState = pickNextThread()) == null){
-				holder = null;
-				return null;
+			KThread ret = null;
+			if (owner != null) {
+				owner.own.remove(this);
+				owner.modify();
 			}
-			
-			threadState.acquire(this);
-			
-			return threadState.thread;
+			if (!waitQueue.isEmpty()) {
+				ThreadState now = waitQueue.firstEntry().getValue();
+				ret = now.thread;
+				remove(now);
+				allState.remove(now);
+				now.belong = null;
+				maximum = waitQueue.isEmpty() ? priorityMinimum : waitQueue.firstKey().priority;
+				if (transferPriority && owner != null) {
+					now.own.add(this);
+					now.modify();
+					owner = now;
+				}
+			}
+			return (ret);
 		}
 
 		/**
@@ -172,25 +178,36 @@ public class PriorityScheduler extends Scheduler {
 		 * @return the next thread that <tt>nextThread()</tt> would return.
 		 */
 		protected ThreadState pickNextThread() {
-			// implement me
-			if (waitThread.isEmpty()){
-				return null;
-			}
-			
-			ThreadState threadState = null;
-			for (int i = 0; i < waitThread.size(); ++i)
-			{
-				ThreadState tmp = getThreadState(waitThread.get(i));
-				if (threadState == null || tmp.getEffectivePriority() > threadState.getEffectivePriority())
-					threadState = tmp;
-			}
-			
-			return threadState;
+			ThreadState ret = null;
+			if (!waitQueue.isEmpty())
+				ret = waitQueue.firstEntry().getValue();
+			return (ret);
 		}
 
 		public void print() {
 			Lib.assertTrue(Machine.interrupt().disabled());
-			// implement me (if you want)
+			// for (Pair x : waitQueue.keySet())
+			// System.out.println(x.priority + " " + x.time + " ");
+			System.out.println(waitQueue.size() + "=====================");
+		}
+
+		void insert(ThreadState state) {
+			waitQueue.put(state.hash(), state);
+		}
+
+		void remove(ThreadState state) {
+			waitQueue.remove(allState.get(state));
+		}
+
+		void modify(ThreadState state) {
+			remove(state);
+			allState.put(state, state.hash());
+			insert(state);
+			if (maximum != waitQueue.firstKey().priority) {
+				maximum = waitQueue.firstKey().priority;
+				if (owner != null)
+					owner.modify();
+			}
 		}
 
 		/**
@@ -198,9 +215,27 @@ public class PriorityScheduler extends Scheduler {
 		 * threads to the owning thread.
 		 */
 		public boolean transferPriority;
-		
-		private List<KThread> waitThread = new ArrayList<KThread>();
-		private ThreadState holder = null;
+		TreeMap<ThreadState, Pair> allState = new TreeMap<ThreadState, Pair>();
+		TreeMap<Pair, ThreadState> waitQueue = new TreeMap<Pair, ThreadState>();
+		ThreadState owner;
+		int maximum = priorityMinimum;
+	}
+
+	class Pair implements Comparable<Pair> {
+		int priority, id;
+		long time;
+
+		Pair(int _priority, long _time, int _id) {
+			priority = _priority;
+			time = _time;
+			id = _id;
+		}
+
+		public int compareTo(Pair a) {
+			if (priority != a.priority)	return a.priority - priority;
+			if (time != a.time)	return time < a.time ? -1 : 1;
+			return id - a.id;
+		}
 	}
 
 	/**
@@ -210,7 +245,15 @@ public class PriorityScheduler extends Scheduler {
 	 * 
 	 * @see nachos.threads.KThread#schedulingState
 	 */
-	protected class ThreadState {
+	protected class ThreadState implements Comparable<ThreadState> {
+		Pair hash() {return new Pair(getEffectivePriority(), time, thread.PID());}
+		/** The thread with which this object is associated. */
+		protected KThread thread;
+		/** The priority of the associated thread. */
+		LinkedList<PriorityQueue> own = new LinkedList<PriorityQueue>();
+		protected int priority, donatePriority;
+		PriorityQueue belong;
+		long time;
 		/**
 		 * Allocate a new <tt>ThreadState</tt> object and associate it with the
 		 * specified thread.
@@ -220,6 +263,7 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public ThreadState(KThread thread) {
 			this.thread = thread;
+			donatePriority = priorityMinimum;
 
 			setPriority(priorityDefault);
 		}
@@ -239,19 +283,7 @@ public class PriorityScheduler extends Scheduler {
 		 * @return the effective priority of the associated thread.
 		 */
 		public int getEffectivePriority() {
-			effective = priority;
-			for (KThread joinThread : thread.joinList) {
-				ThreadState threadState = getThreadState(joinThread);
-				effective = Math.max(effective, threadState.getEffectivePriority());
-			}
-			for (PriorityQueue waitQueue : holdPQ) {
-				if (!waitQueue.transferPriority) continue;
-				for (int i = 0; i < waitQueue.waitThread.size(); ++i) {
-					ThreadState threadState = getThreadState(waitQueue.waitThread.get(i));
-					effective = Math.max(effective, threadState.getEffectivePriority());
-				}
-			}
-			return effective;
+			return Math.max(priority, donatePriority);
 		}
 
 		/**
@@ -261,12 +293,9 @@ public class PriorityScheduler extends Scheduler {
 		 *            the new priority.
 		 */
 		public void setPriority(int priority) {
-			if (this.priority == priority)
-				return;
-
+			if (this.priority == priority) return;
 			this.priority = priority;
-
-			// implement me
+			if (belong != null)	belong.modify(this);
 		}
 
 		/**
@@ -282,13 +311,12 @@ public class PriorityScheduler extends Scheduler {
 		 * @see nachos.threads.ThreadQueue#waitForAccess
 		 */
 		public void waitForAccess(PriorityQueue waitQueue) {
-			// implement me
-			boolean intStatus = Machine.interrupt().disable();
-			
-			waitQueue.waitThread.add(this.thread);
 			belong = waitQueue;
-			
-			Machine.interrupt().setStatus(intStatus);
+			time = Machine.timer().getTime();
+			belong.allState.put(this, hash());
+			belong.insert(this);
+			if (belong.transferPriority	&& getEffectivePriority() > belong.maximum)
+				belong.modify(this);
 		}
 
 		/**
@@ -302,26 +330,25 @@ public class PriorityScheduler extends Scheduler {
 		 * @see nachos.threads.ThreadQueue#nextThread
 		 */
 		public void acquire(PriorityQueue waitQueue) {
-			// implement me
-			boolean intStatus = Machine.interrupt().disable();
-			
-			waitQueue.waitThread.remove(this.thread);
-			waitQueue.holder = this;
-			this.holdPQ.add(waitQueue);
-			this.belong = null;
-			
-			Machine.interrupt().setStatus(intStatus);
+			if (waitQueue.transferPriority) {
+				waitQueue.owner = this;
+				own.add(waitQueue);
+				modify();
+			}
 		}
 
-		/** The thread with which this object is associated. */
-		protected KThread thread;
-		/** The priority of the associated thread. */
-		protected int priority;
-		
-		private List<PriorityQueue> holdPQ = new ArrayList<PriorityQueue>();
-		private PriorityQueue belong = null;
-		
-		private int effective = -1;
+		public int compareTo(ThreadState x) {
+			return thread.PID() - x.thread.PID();
+		}
 
+		void modify() {
+			int now = priorityMinimum;
+			for (PriorityQueue queue : own)
+				now = Math.max(now, queue.maximum);
+			if (now != donatePriority) {
+				donatePriority = now;
+				if (belong != null) belong.modify(this);
+			}
+		}
 	}
 }
