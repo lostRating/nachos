@@ -1,0 +1,20 @@
+Purpose
+Tests file management syscalls, such as creat(), open(), read(), write(), close(), unlink(). 
+
+File descriptor management and critical implementation requirements are also tested. 
+
+For example, the following requirement in specification is tested: if any processes still have the file open, the file will remain in existence until the last file descriptor referring to it is closed. 
+
+However, creat() and open() will not be able to return new file descriptors for the file until it is deleted.
+
+Usage:
+-- nachos.ag.CoffGrader -x test_files4.coff
+
+Note:
+Logs are written to filetest.log
+
+Author: Ted Yin
+Address: ted.sybil@gmail.com
+
+History:
+2014-10-25 Ted Yin: The first version

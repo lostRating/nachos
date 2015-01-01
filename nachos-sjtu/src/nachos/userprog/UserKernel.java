@@ -1,7 +1,13 @@
 package nachos.userprog;
 
-import nachos.machine.*;
-import nachos.threads.*;
+import java.util.*;
+
+import nachos.machine.Kernel;
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+import nachos.machine.Processor;
+import nachos.threads.KThread;
+import nachos.threads.ThreadedKernel;
 
 /**
  * A kernel that can support multiple user processes.
@@ -19,8 +25,11 @@ public class UserKernel extends ThreadedKernel {
 	 * processor's exception handler.
 	 */
 	public void initialize(String[] args) {
-		super.initialize(args);
+		freePage = new TreeSet<Integer>();
+		for (int i = 0; i < Machine.processor().getNumPhysPages(); i++)
+			freePage.add(i);
 
+		super.initialize(args);
 		console = new SynchConsole(Machine.console());
 
 		Machine.processor().setExceptionHandler(new Runnable() {
@@ -34,19 +43,19 @@ public class UserKernel extends ThreadedKernel {
 	 * Test the console device.
 	 */
 	public void selfTest() {
-		super.selfTest();
-
-		System.out.println("Testing the console device. Typed characters");
-		System.out.println("will be echoed until q is typed.");
-
-		char c;
-
-		do {
-			c = (char) console.readByte(true);
-			console.writeByte(c);
-		} while (c != 'q');
-
-		System.out.println("");
+		/*
+		 * super.selfTest();
+		 * 
+		 * System.out.println("Testing the console device. Typed characters");
+		 * System.out.println("will be echoed until q is typed.");
+		 * 
+		 * char c;
+		 * 
+		 * do { c = (char) console.readByte(true); console.writeByte(c); } while
+		 * (c != 'q');
+		 * 
+		 * System.out.println("");
+		 */
 	}
 
 	/**
@@ -109,5 +118,6 @@ public class UserKernel extends ThreadedKernel {
 
 	/** Globally accessible reference to the synchronized console. */
 	public static SynchConsole console;
+	public static TreeSet<Integer> freePage;
 
 }

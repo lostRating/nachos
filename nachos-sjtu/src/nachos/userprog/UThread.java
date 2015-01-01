@@ -1,7 +1,9 @@
 package nachos.userprog;
 
-import nachos.machine.*;
-import nachos.threads.*;
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+import nachos.machine.Processor;
+import nachos.threads.KThread;
 
 /**
  * A UThread is KThread that can execute user program code inside a user

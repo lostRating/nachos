@@ -35,8 +35,8 @@ public class LotteryScheduler extends PriorityScheduler {
 	 *            waiting threads to the owning thread.
 	 * @return a new lottery thread queue.
 	 */
-	public ThreadQueue newThreadQueue(boolean transferPriority) {
+/*	public ThreadQueue newThreadQueue(boolean transferPriority) {
 		// implement me
 		return null;
-	}
+	}*/
 }

@@ -18,6 +18,7 @@ public class VMKernel extends UserKernel {
 	 */
 	public void initialize(String[] args) {
 		super.initialize(args);
+		fileSystem.open("SWAP", true);
 	}
 
 	/**
@@ -38,6 +39,7 @@ public class VMKernel extends UserKernel {
 	 * Terminate this kernel. Never returns.
 	 */
 	public void terminate() {
+		VMProcess.Swap.close();
 		super.terminate();
 	}
 
