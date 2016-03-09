@@ -1,0 +1,5 @@
+A course project to implement some functions in nachos OS
+
+------------------------------------------------
+
+Implement thread scheduling, system API, virtual memory, etc.
